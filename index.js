@@ -1,15 +1,22 @@
+require('dotenv').config(); 
+
 const express = require('express');
-const bodyParser = require('body-parser');
+const bodyParser = require('body-parser'); 
 const cors = require('cors');
+
+// On importe tout depuis le contrôleur, y compris les nouvelles règles
 const carsController = require('./controllers/usersControllers');
-const checkApiKey = require('./middleware/checkApiKey'); // [cite: 663]
+const { carValidationRules, validate } = require('./controllers/usersControllers'); 
+// ---
+
+const checkApiKey = require('./middleware/checkApiKey');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middlewares
 app.use(cors());
-app.use(bodyParser.json());
+app.use(bodyParser.json()); 
 
 // Route de bienvenue
 app.get('/', (req, res) => {
@@ -18,6 +25,7 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: {
       getAllCars: 'GET /api/cars',
+      searchCars: 'GET /api/cars/search',
       getCarById: 'GET /api/cars/:id',
       createCar: 'POST /api/cars',
       updateCar: 'PUT /api/cars/:id',
@@ -26,11 +34,16 @@ app.get('/', (req, res) => {
   });
 });
 
-// Routes CRUD (maintenant protégées par le middleware)
+// Routes CRUD (protégées par le middleware)
 app.get('/api/cars', checkApiKey, carsController.getAllCars);
+app.get('/api/cars/search', checkApiKey, carsController.searchCars);
 app.get('/api/cars/:id', checkApiKey, carsController.getCarById);
-app.post('/api/cars', checkApiKey, carsController.createCar);
-app.put('/api/cars/:id', checkApiKey, carsController.updateCar);
+
+// middlewares de validation (carValidationRules et validate)
+app.post('/api/cars', checkApiKey, carValidationRules, validate, carsController.createCar);
+app.put('/api/cars/:id', checkApiKey, carValidationRules, validate, carsController.updateCar);
+// ---
+
 app.delete('/api/cars/:id', checkApiKey, carsController.deleteCar);
 
 // Gestion des routes non trouvées

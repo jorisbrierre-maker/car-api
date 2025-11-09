@@ -1,10 +1,12 @@
+require('dotenv').config();
+
 // Middleware pour vérifier la clé API
 const checkApiKey = (req, res, next) => {
     // Récupérer la clé API depuis les headers
     const apiKey = req.headers['x-api-key'];
     
     // Clé API attendue (en production, stockez-la dans des variables d'environnement)
-    const validApiKey = 'ma-super-cle-api-2024';
+    const validApiKey = process.env.API_KEY;
     
     // Vérification
     if (!apiKey) {

@@ -1,46 +1,143 @@
 const db = require('../database');
+const { body, validationResult } = require('express-validator');
 
-// GET - Récupérer toutes les voitures
-exports.getAllCars = (req, res) => {
-  const query = 'SELECT * FROM cars ORDER BY year DESC';
+// --- Règles de validation pour une voiture ---
+exports.carValidationRules = [
+  body('brand').notEmpty().withMessage('La marque (brand) est obligatoire.'),
+  body('model').notEmpty().withMessage('Le modèle (model) est obligatoire.'),
+  body('year').isInt({ min: 1886, max: 2030 }).withMessage("L'année (year) doit être un nombre valide (ex: 1995)."),
+  body('price').optional().isNumeric().withMessage('Le prix (price) doit être un nombre.'),
+  body('mileage').optional().isInt({ min: 0 }).withMessage('Le kilométrage (mileage) doit être un nombre positif.'),
+  body('color').optional().isString().withMessage('La couleur (color) doit être une chaîne de caractères.'),
+  body('description').optional().isString().withMessage('La description (description) doit être une chaîne de caractères.')
+];
+
+// --- Middleware qui vérifie les résultats de la validation ---
+exports.validate = (req, res, next) => {
+  const errors = validationResult(req);
+  if (errors.isEmpty()) {
+    return next(); // Pas d'erreurs, on continue
+  }
   
-  db.all(query, [], (err, rows) => {
+  // Il y a des erreurs, on renvoie une 400
+  return res.status(400).json({
+    error: 'Données invalides',
+    errors: errors.array() // On renvoie la liste des erreurs
+  });
+};
+
+// --- GET - Récupérer toutes les voitures (avec pagination ET tri) ---
+exports.getAllCars = (req, res) => {
+  // 1. Récupérer les paramètres de pagination (avec des valeurs par défaut)
+  const page = parseInt(req.query.page || 1);
+  const limit = parseInt(req.query.limit || 10);
+  const offset = (page - 1) * limit;
+
+  // 2. Récupérer les paramètres de tri (avec valeurs par défaut)
+  const sortBy = req.query.sortBy || 'year';
+  const order = (req.query.order || 'DESC').toUpperCase(); // Mettre en majuscule
+
+  // 3. Sécuriser les paramètres de tri (Whitelist)
+  const allowedSortBy = ['id', 'brand', 'model', 'year', 'price', 'mileage'];
+  const allowedOrder = ['ASC', 'DESC'];
+  const sortColumn = allowedSortBy.includes(sortBy) ? sortBy : 'year';
+  const sortOrder = allowedOrder.includes(order) ? order : 'DESC';
+
+  // 4. Modifier la requête SQL
+  const query = `SELECT * FROM cars ORDER BY ${sortColumn} ${sortOrder} LIMIT ? OFFSET ?`;
+  const params = [limit, offset];
+
+  db.all(query, params, (err, rows) => {
     if (err) {
-      return res.status(500).json({ 
+      return res.status(500).json({
         error: 'Erreur lors de la récupération des voitures',
-        details: err.message 
+        details: err.message
       });
     }
     
     res.json({
       success: true,
       message: 'Liste des voitures récupérée',
+      page: page,
+      limit: limit,
+      sortBy: sortColumn,
+      order: sortOrder,
       count: rows.length,
       data: rows
     });
   });
 };
 
-// GET - Récupérer une voiture par ID
+// --- GET - Rechercher des voitures ---
+exports.searchCars = (req, res) => {
+  // 1. Récupérer les paramètres de recherche de l'URL (req.query)
+  const { brand, model, minYear, maxYear, minPrice, maxPrice } = req.query;
+
+  // 2. Construire la requête SQL dynamiquement
+  let query = 'SELECT * FROM cars WHERE 1 = 1';
+  const params = []; 
+
+  if (brand) {
+    query += ' AND brand LIKE ?';
+    params.push(`%${brand}%`); 
+  }
+  if (model) {
+    query += ' AND model LIKE ?';
+    params.push(`%${model}%`);
+  }
+  if (minYear) {
+    query += ' AND year >= ?';
+    params.push(minYear);
+  }
+  if (maxYear) {
+    query += ' AND year <= ?';
+    params.push(maxYear);
+  }
+  if (minPrice) {
+    query += ' AND price >= ?';
+    params.push(minPrice);
+  }
+  if (maxPrice) {
+    query += ' AND price <= ?';
+    params.push(maxPrice);
+  }
+
+  query += ' ORDER BY year DESC';
+
+  // 3. Exécuter la requête
+  db.all(query, params, (err, rows) => {
+    if (err) {
+      return res.status(500).json({
+        error: 'Erreur lors de la recherche',
+        details: err.message
+      });
+    }
+    res.json({
+      success: true,
+      message: 'Recherche effectuée',
+      count: rows.length,
+      data: rows
+    });
+  });
+};
+
+// --- GET - Récupérer une voiture par ID ---
 exports.getCarById = (req, res) => {
   const id = req.params.id;
   const query = 'SELECT * FROM cars WHERE id = ?';
-  
   db.get(query, [id], (err, row) => {
     if (err) {
-      return res.status(500).json({ 
+      return res.status(500).json({
         error: 'Erreur serveur',
-        details: err.message 
+        details: err.message
       });
     }
-    
     if (!row) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         error: 'Voiture non trouvée',
-        message: `Aucune voiture avec l'ID ${id}` 
+        message: `Aucune voiture avec l'ID ${id}`
       });
     }
-    
     res.json({
       success: true,
       message: 'Voiture trouvée',
@@ -49,140 +146,104 @@ exports.getCarById = (req, res) => {
   });
 };
 
-// POST - Créer une nouvelle voiture
+// --- POST - Créer une nouvelle voiture ---
 exports.createCar = (req, res) => {
+  // La validation a déjà été faite par les middlewares
   const { brand, model, year, color, price, mileage, description } = req.body;
-  
-  // Validation des données
-  if (!brand || !model || !year) {
-    return res.status(400).json({ 
-      error: 'Données invalides',
-      message: 'Les champs brand, model et year sont obligatoires' 
-    });
-  }
-  
+
   const query = `
     INSERT INTO cars (brand, model, year, color, price, mileage, description)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `;
-  
-  db.run(
-    query,
-    [brand, model, year, color, price, mileage, description],
-    function(err) {
-      if (err) {
-        return res.status(500).json({ 
-          error: 'Erreur lors de la création',
-          details: err.message 
-        });
-      }
-      
-      res.status(201).json({
-        success: true,
-        message: 'Voiture créée avec succès',
-        data: {
-          id: this.lastID,
-          brand,
-          model,
-          year,
-          color,
-          price,
-          mileage,
-          description
-        }
-      });
-    }
-  );
-};
+  const params = [brand, model, year, color, price, mileage, description];
 
-// PUT - Modifier une voiture existante
-exports.updateCar = (req, res) => {
-  const id = req.params.id;
-  const { brand, model, year, color, price, mileage, description } = req.body;
-  
-  // Vérifier si la voiture existe
-  db.get('SELECT * FROM cars WHERE id = ?', [id], (err, row) => {
+  db.run(query, params, function (err) { 
     if (err) {
-      return res.status(500).json({ 
-        error: 'Erreur serveur',
-        details: err.message 
+      return res.status(500).json({
+        error: 'Erreur lors de la création',
+        details: err.message
       });
     }
-    
-    if (!row) {
-      return res.status(404).json({ 
-        error: 'Voiture non trouvée' 
-      });
-    }
-    
-    const query = `
-      UPDATE cars 
-      SET brand = ?, model = ?, year = ?, color = ?, price = ?, mileage = ?, description = ?
-      WHERE id = ?
-    `;
-    
-    db.run(
-      query,
-      [brand, model, year, color, price, mileage, description, id],
-      function(err) {
-        if (err) {
-          return res.status(500).json({ 
-            error: 'Erreur lors de la mise à jour',
-            details: err.message 
-          });
-        }
-        
-        res.json({
-          success: true,
-          message: 'Voiture mise à jour avec succès',
-          data: {
-            id,
-            brand,
-            model,
-            year,
-            color,
-            price,
-            mileage,
-            description
-          }
-        });
+    res.status(201).json({
+      success: true,
+      message: 'Voiture créée avec succès',
+      data: {
+        id: this.lastID,
+        brand,
+        model,
+        year,
+        color,
+        price,
+        mileage,
+        description
       }
-    );
+    });
   });
 };
 
-// DELETE - Supprimer une voiture
+// --- PUT - Modifier une voiture existante ---
+exports.updateCar = (req, res) => {
+  // La validation a déjà été faite par les middlewares
+  const id = req.params.id;
+  const { brand, model, year, color, price, mileage, description } = req.body;
+
+  const query = `
+    UPDATE cars
+    SET brand = ?, model = ?, year = ?, color = ?, price = ?, mileage = ?, description = ?
+    WHERE id = ?
+  `;
+  const params = [brand, model, year, color, price, mileage, description, id];
+
+  db.run(query, params, function (err) {
+    if (err) {
+      return res.status(500).json({
+        error: 'Erreur lors de la mise à jour',
+        details: err.message
+      });
+    }
+    if (this.changes === 0) { 
+      return res.status(404).json({
+        error: 'Voiture non trouvée'
+      });
+    }
+    res.json({
+      success: true,
+      message: 'Voiture mise à jour avec succès',
+      data: {
+        id: Number(id),
+        brand,
+        model,
+        year,
+        color,
+        price,
+        mileage,
+        description
+      }
+    });
+  });
+};
+
+// --- DELETE - Supprimer une voiture ---
 exports.deleteCar = (req, res) => {
   const id = req.params.id;
-  
-  // Vérifier si la voiture existe
-  db.get('SELECT * FROM cars WHERE id = ?', [id], (err, row) => {
+  const query = 'DELETE FROM cars WHERE id = ?';
+
+  db.run(query, [id], function (err) {
     if (err) {
-      return res.status(500).json({ 
-        error: 'Erreur serveur',
-        details: err.message 
+      return res.status(500).json({
+        error: 'Erreur lors de la suppression',
+        details: err.message
       });
     }
-    
-    if (!row) {
-      return res.status(404).json({ 
-        error: 'Voiture non trouvée' 
+    if (this.changes === 0) {
+      return res.status(404).json({
+        error: 'Voiture non trouvée'
       });
     }
-    
-    db.run('DELETE FROM cars WHERE id = ?', [id], function(err) {
-      if (err) {
-        return res.status(500).json({ 
-          error: 'Erreur lors de la suppression',
-          details: err.message 
-        });
-      }
-      
-      res.json({
-        success: true,
-        message: 'Voiture supprimée avec succès',
-        data: { id }
-      });
+    res.json({
+      success: true,
+      message: 'Voiture supprimée avec succès',
+      data: { id: Number(id) }
     });
   });
 };
