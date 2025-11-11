@@ -1,3 +1,4 @@
+// --- Imports ---
 const db = require('../database');
 const { body, validationResult } = require('express-validator');
 
@@ -9,7 +10,9 @@ exports.carValidationRules = [
   body('price').optional().isNumeric().withMessage('Le prix (price) doit être un nombre.'),
   body('mileage').optional().isInt({ min: 0 }).withMessage('Le kilométrage (mileage) doit être un nombre positif.'),
   body('color').optional().isString().withMessage('La couleur (color) doit être une chaîne de caractères.'),
-  body('description').optional().isString().withMessage('La description (description) doit être une chaîne de caractères.')
+  body('description').optional().isString().withMessage('La description (description) doit être une chaîne de caractères.'),
+  body('favorite').optional().isBoolean().withMessage('Le champ "favorite" doit être un booléen (0 ou 1).'),
+  body('category').optional().isString().withMessage('La catégorie doit être une chaîne de caractères.')
 ];
 
 // --- Middleware qui vérifie les résultats de la validation ---
@@ -28,22 +31,22 @@ exports.validate = (req, res, next) => {
 
 // --- GET - Récupérer toutes les voitures (avec pagination ET tri) ---
 exports.getAllCars = (req, res) => {
-  // 1. Récupérer les paramètres de pagination (avec des valeurs par défaut)
+  // 1. Pagination
   const page = parseInt(req.query.page || 1);
   const limit = parseInt(req.query.limit || 10);
   const offset = (page - 1) * limit;
 
-  // 2. Récupérer les paramètres de tri (avec valeurs par défaut)
+  // 2. Tri
   const sortBy = req.query.sortBy || 'year';
-  const order = (req.query.order || 'DESC').toUpperCase(); // Mettre en majuscule
+  const order = (req.query.order || 'DESC').toUpperCase(); 
 
-  // 3. Sécuriser les paramètres de tri (Whitelist)
+  // 3. Sécurisation du tri (Whitelist)
   const allowedSortBy = ['id', 'brand', 'model', 'year', 'price', 'mileage'];
   const allowedOrder = ['ASC', 'DESC'];
   const sortColumn = allowedSortBy.includes(sortBy) ? sortBy : 'year';
   const sortOrder = allowedOrder.includes(order) ? order : 'DESC';
 
-  // 4. Modifier la requête SQL
+  // 4. Requête SQL
   const query = `SELECT * FROM cars ORDER BY ${sortColumn} ${sortOrder} LIMIT ? OFFSET ?`;
   const params = [limit, offset];
 
@@ -69,52 +72,76 @@ exports.getAllCars = (req, res) => {
 };
 
 // --- GET - Rechercher des voitures ---
+// GET - Rechercher des voitures
 exports.searchCars = (req, res) => {
-  // 1. Récupérer les paramètres de recherche de l'URL (req.query)
-  const { brand, model, minYear, maxYear, minPrice, maxPrice } = req.query;
-
-  // 2. Construire la requête SQL dynamiquement
-  let query = 'SELECT * FROM cars WHERE 1 = 1';
-  const params = []; 
-
-  if (brand) {
-    query += ' AND brand LIKE ?';
-    params.push(`%${brand}%`); 
-  }
-  if (model) {
-    query += ' AND model LIKE ?';
-    params.push(`%${model}%`);
-  }
-  if (minYear) {
-    query += ' AND year >= ?';
-    params.push(minYear);
-  }
-  if (maxYear) {
-    query += ' AND year <= ?';
-    params.push(maxYear);
-  }
-  if (minPrice) {
-    query += ' AND price >= ?';
-    params.push(minPrice);
-  }
-  if (maxPrice) {
-    query += ' AND price <= ?';
-    params.push(maxPrice);
-  }
-
-  query += ' ORDER BY year DESC';
-
-  // 3. Exécuter la requête
-  db.all(query, params, (err, rows) => {
+    // 1. Récupérer les paramètres de recherche de l'URL (req.query)
+    const { brand, model, minYear, maxYear, minPrice, maxPrice, category } = req.query;
+  
+    // 2. Construire la requête SQL dynamiquement
+    let query = 'SELECT * FROM cars WHERE 1 = 1'; // "1=1" est une astuce pour pouvoir ajouter "AND"
+    const params = []; // On stocke les valeurs ici pour éviter les injections SQL
+  
+    if (brand) {
+      query += ' AND brand LIKE ?';
+      params.push(`%${brand}%`); // On utilise LIKE avec '%' pour une recherche partielle
+    }
+    if (model) {
+      query += ' AND model LIKE ?';
+      params.push(`%${model}%`);
+    }
+    if (minYear) {
+      query += ' AND year >= ?';
+      params.push(minYear);
+    }
+    if (maxYear) {
+      query += ' AND year <= ?';
+      params.push(maxYear);
+    }
+    if (minPrice) {
+      query += ' AND price >= ?';
+      params.push(minPrice);
+    }
+    if (maxPrice) {
+      query += ' AND price <= ?';
+      params.push(maxPrice);
+    }
+    if (category) {
+      query += ' AND category = ?';
+      params.push(category);
+    }
+  
+    query += ' ORDER BY year DESC';
+  
+    // 3. Exécuter la requête
+    db.all(query, params, (err, rows) => {
+      if (err) {
+        return res.status(500).json({
+          error: 'Erreur lors de la recherche',
+          details: err.message
+        });
+      }
+      res.json({
+        success: true,
+        message: 'Recherche effectuée',
+        count: rows.length,
+        data: rows
+      });
+    });
+  };
+// --- GET - Récupérer les voitures favorites ---
+exports.getFavoriteCars = (req, res) => {
+  const query = 'SELECT * FROM cars WHERE favorite = 1 ORDER BY brand ASC';
+  
+  db.all(query, [], (err, rows) => {
     if (err) {
       return res.status(500).json({
-        error: 'Erreur lors de la recherche',
+        error: 'Erreur lors de la récupération des favoris',
         details: err.message
       });
     }
     res.json({
       success: true,
-      message: 'Recherche effectuée',
+      message: 'Liste des voitures favorites',
       count: rows.length,
       data: rows
     });
@@ -148,80 +175,56 @@ exports.getCarById = (req, res) => {
 
 // --- POST - Créer une nouvelle voiture ---
 exports.createCar = (req, res) => {
-  // La validation a déjà été faite par les middlewares
-  const { brand, model, year, color, price, mileage, description } = req.body;
-
-  const query = `
-    INSERT INTO cars (brand, model, year, color, price, mileage, description)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `;
-  const params = [brand, model, year, color, price, mileage, description];
-
-  db.run(query, params, function (err) { 
-    if (err) {
-      return res.status(500).json({
-        error: 'Erreur lors de la création',
-        details: err.message
+    const { brand, model, year, color, price, mileage, description, favorite, category } = req.body; // Ajout 'category'
+  
+    const query = `
+      INSERT INTO cars (brand, model, year, color, price, mileage, description, favorite, category)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `; // Ajout 'category'
+    const params = [brand, model, year, color, price, mileage, description, favorite || 0, category]; // Ajout 'category'
+  
+    db.run(query, params, function (err) { 
+      if (err) { /* ... */ }
+      res.status(201).json({
+        success: true,
+        message: 'Voiture créée avec succès',
+        data: {
+          id: this.lastID,
+          brand, model, year, color, price, mileage, description, 
+          favorite: favorite || 0,
+          category // Ajout 'category'
+        }
       });
-    }
-    res.status(201).json({
-      success: true,
-      message: 'Voiture créée avec succès',
-      data: {
-        id: this.lastID,
-        brand,
-        model,
-        year,
-        color,
-        price,
-        mileage,
-        description
-      }
     });
-  });
-};
+  };
 
 // --- PUT - Modifier une voiture existante ---
 exports.updateCar = (req, res) => {
-  // La validation a déjà été faite par les middlewares
-  const id = req.params.id;
-  const { brand, model, year, color, price, mileage, description } = req.body;
-
-  const query = `
-    UPDATE cars
-    SET brand = ?, model = ?, year = ?, color = ?, price = ?, mileage = ?, description = ?
-    WHERE id = ?
-  `;
-  const params = [brand, model, year, color, price, mileage, description, id];
-
-  db.run(query, params, function (err) {
-    if (err) {
-      return res.status(500).json({
-        error: 'Erreur lors de la mise à jour',
-        details: err.message
+    const id = req.params.id;
+    const { brand, model, year, color, price, mileage, description, favorite, category } = req.body; // Ajout 'category'
+  
+    const query = `
+      UPDATE cars
+      SET brand = ?, model = ?, year = ?, color = ?, price = ?, mileage = ?, description = ?, favorite = ?, category = ?
+      WHERE id = ?
+    `; // Ajout 'category = ?'
+    const params = [brand, model, year, color, price, mileage, description, favorite, category, id]; // Ajout 'category'
+  
+    db.run(query, params, function (err) {
+      if (err) { /* ... */ }
+      if (this.changes === 0) { /* ... */ }
+      res.json({
+        success: true,
+        message: 'Voiture mise à jour avec succès',
+        data: {
+          id: Number(id),
+          brand, model, year, color, price, mileage, description,
+          favorite,
+          category // Ajout 'category'
+        }
       });
-    }
-    if (this.changes === 0) { 
-      return res.status(404).json({
-        error: 'Voiture non trouvée'
-      });
-    }
-    res.json({
-      success: true,
-      message: 'Voiture mise à jour avec succès',
-      data: {
-        id: Number(id),
-        brand,
-        model,
-        year,
-        color,
-        price,
-        mileage,
-        description
-      }
     });
-  });
-};
+  };;
 
 // --- DELETE - Supprimer une voiture ---
 exports.deleteCar = (req, res) => {

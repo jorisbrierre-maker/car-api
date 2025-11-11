@@ -1,18 +1,16 @@
-require('dotenv').config(); 
-
+require('dotenv').config(); // Doit être tout en haut
 const express = require('express');
-const bodyParser = require('body-parser'); 
+const bodyParser = require('body-parser');
 const cors = require('cors');
 
-// On importe tout depuis le contrôleur, y compris les nouvelles règles
+// On importe tout depuis le contrôleur
 const carsController = require('./controllers/usersControllers');
 const { carValidationRules, validate } = require('./controllers/usersControllers'); 
-// ---
-
 const checkApiKey = require('./middleware/checkApiKey');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+// Utilise le PORT du fichier .env, ou 3000 par défaut
+const PORT = process.env.PORT || 3000; 
 
 // Middlewares
 app.use(cors());
@@ -26,6 +24,7 @@ app.get('/', (req, res) => {
     endpoints: {
       getAllCars: 'GET /api/cars',
       searchCars: 'GET /api/cars/search',
+      getFavoriteCars: 'GET /api/cars/favorites', // Route des favoris
       getCarById: 'GET /api/cars/:id',
       createCar: 'POST /api/cars',
       updateCar: 'PUT /api/cars/:id',
@@ -37,12 +36,12 @@ app.get('/', (req, res) => {
 // Routes CRUD (protégées par le middleware)
 app.get('/api/cars', checkApiKey, carsController.getAllCars);
 app.get('/api/cars/search', checkApiKey, carsController.searchCars);
+app.get('/api/cars/favorites', checkApiKey, carsController.getFavoriteCars); // Route des favoris
 app.get('/api/cars/:id', checkApiKey, carsController.getCarById);
 
-// middlewares de validation (carValidationRules et validate)
+// Routes avec validation
 app.post('/api/cars', checkApiKey, carValidationRules, validate, carsController.createCar);
 app.put('/api/cars/:id', checkApiKey, carValidationRules, validate, carsController.updateCar);
-// ---
 
 app.delete('/api/cars/:id', checkApiKey, carsController.deleteCar);
 

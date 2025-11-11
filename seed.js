@@ -1,3 +1,4 @@
+// On importe la base de données
 const db = require('./database');
 
 // Données de test
@@ -9,7 +10,8 @@ const sampleCars = [
     color: 'Rouge',
     price: 45000000,
     mileage: 12000,
-    description: 'Voiture de collection exceptionnelle'
+    description: 'Voiture de collection exceptionnelle',
+    category: 'Sportive' 
   },
   {
     brand: 'Porsche',
@@ -18,7 +20,8 @@ const sampleCars = [
     color: 'Blanc',
     price: 850000,
     mileage: 45000,
-    description: 'Légendaire modèle RS'
+    description: 'Légendaire modèle RS',
+    category: 'Sportive' 
   },
   {
     brand: 'Jaguar',
@@ -27,7 +30,8 @@ const sampleCars = [
     color: 'Bleu',
     price: 320000,
     mileage: 78000,
-    description: 'Icône du design automobile'
+    description: 'Icône du design automobile',
+    category: 'Cabriolet'
   },
   {
     brand: 'Mercedes-Benz',
@@ -36,7 +40,8 @@ const sampleCars = [
     color: 'Argent',
     price: 1200000,
     mileage: 34000,
-    description: 'Portes papillon emblématiques'
+    description: 'Portes papillon emblématiques',
+    category: 'Sportive' 
   },
   {
     brand: 'Aston Martin',
@@ -45,50 +50,54 @@ const sampleCars = [
     color: 'Gris',
     price: 750000,
     mileage: 56000,
-    description: 'La voiture de James Bond'
+    description: 'La voiture de James Bond',
+    favorite: 1, // On marque celle-ci comme favorite
+    category: 'Coupé'
   }
 ];
 
 // Fonction pour insérer les données
 function seedDatabase() {
-  // D'abord, on vide la table
-  db.run('DELETE FROM cars', (err) => {
-    if (err) {
-      console.error('❌ Erreur lors du vidage de la table:', err.message);
-      return;
-    }
-
-    console.log('🗑️  Table vidée');
-
-    // Puis on insère les nouvelles données
-    const insertQuery = `
-      INSERT INTO cars (brand, model, year, color, price, mileage, description)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `;
-
-    let insertedCount = 0;
-
-    sampleCars.forEach((car) => {
-      db.run(
-        insertQuery,
-        [car.brand, car.model, car.year, car.color, car.price, car.mileage, car.description],
-        (err) => {
-          if (err) {
-            console.error('❌ Erreur lors de l\'insertion:', err.message);
-          } else {
-            insertedCount++;
-            console.log(`✅ Voiture insérée: ${car.brand} ${car.model}`);
-
-            if (insertedCount === sampleCars.length) {
-              console.log('\n🎉 Base de données initialisée avec succès !');
-              db.close();
+    db.run('DELETE FROM cars', (err) => {
+      if (err) { /* ... */ }
+      console.log('Table vidée');
+  
+      const insertQuery = `
+        INSERT INTO cars (brand, model, year, color, price, mileage, description, favorite, category)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `; // <-- Ajout de 'category' et '?'
+  
+      let insertedCount = 0;
+      sampleCars.forEach((car) => {
+        db.run(
+          insertQuery,
+          [
+            car.brand, 
+            car.model, 
+            car.year, 
+            car.color, 
+            car.price, 
+            car.mileage, 
+            car.description, 
+            car.favorite || 0,
+            car.category // <-- Ajout du paramètre
+          ],
+          (err) => {
+            if (err) {
+              console.error('Erreur lors de l\'insertion:', err.message);
+            } else {
+              console.log(`Voiture insérée: ${car.brand} ${car.model}`);
+              insertedCount++;
+              if (insertedCount === sampleCars.length) {
+                console.log('\nBase de données initialisée avec succès!');
+                db.close();
+              }
             }
           }
-        }
-      );
+        );
+      });
     });
-  });
-}
+  }
 
 // Exécution du seed
 seedDatabase();

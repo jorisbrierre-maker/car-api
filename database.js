@@ -24,6 +24,8 @@ const createTableQuery = `
     price REAL,
     mileage INTEGER,
     description TEXT,
+    favorite INTEGER DEFAULT 0,
+    category TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `;
