@@ -71,7 +71,6 @@ exports.getAllCars = (req, res) => {
   });
 };
 
-// --- GET - Rechercher des voitures ---
 // GET - Rechercher des voitures
 exports.searchCars = (req, res) => {
     // 1. Récupérer les paramètres de recherche de l'URL (req.query)
@@ -250,3 +249,42 @@ exports.deleteCar = (req, res) => {
     });
   });
 };
+
+// ... (après exports.deleteCar et getFavoriteCars) ...
+
+// POST - Uploader une image pour une voiture
+exports.uploadCarImage = (req, res) => {
+    const id = req.params.id;
+  
+    // 1. Vérifier si un fichier a bien été uploadé
+    if (!req.file) {
+      return res.status(400).json({ error: 'Aucun fichier sélectionné.' });
+    }
+  
+    // 2. Récupérer le chemin du fichier (géré par multer)
+    // On remplace les '\' (Windows) par des '/' (standard URL)
+    const imageUrl = req.file.path.replace(/\\/g, "/"); 
+  
+    // 3. Mettre à jour la base de données
+    const query = `UPDATE cars SET image_url = ? WHERE id = ?`;
+    const params = [imageUrl, id];
+  
+    db.run(query, params, function(err) {
+      if (err) {
+        return res.status(500).json({ error: 'Erreur lors de la mise à jour de la BDD', details: err.message });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Voiture non trouvée.' });
+      }
+  
+      // 4. Renvoyer la réponse
+      res.json({
+        success: true,
+        message: 'Image uploadée avec succès!',
+        data: {
+          id: Number(id),
+          image_url: imageUrl
+        }
+      });
+    });
+  };
