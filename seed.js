@@ -23,7 +23,8 @@ const sampleCars = [
     price: 850000,
     mileage: 45000,
     description: 'Légendaire modèle RS',
-    category: 'Sportive'
+    category: 'Sportive',
+    image_url: "https://www.supercars.net/blog/wp-content/uploads/2019/11/Porsche-911-Carrera-RS-2.7.png"
   },
   {
     brand: 'Jaguar',
@@ -33,7 +34,8 @@ const sampleCars = [
     price: 320000,
     mileage: 78000,
     description: 'Icône du design automobile',
-    category: 'Cabriolet'
+    category: 'Cabriolet',
+    image_url: "https://cdn.classic-trader.com/I/images/1920_1920_inset/vehicle_ad_standard_image_ee7bdb798a6ccdab0368048d1403677a.jpg"
   },
   {
     brand: 'Mercedes-Benz',
@@ -43,7 +45,8 @@ const sampleCars = [
     price: 1200000,
     mileage: 34000,
     description: 'Portes papillon emblématiques',
-    category: 'Sportive'
+    category: 'Sportive',
+    image_url: "https://upload.wikimedia.org/wikipedia/commons/e/eb/1955_Mercedes-Benz_300SL_Gullwing_Coupe_34_right.jpg"
   },
   {
     brand: 'Aston Martin',
@@ -54,7 +57,9 @@ const sampleCars = [
     mileage: 56000,
     description: 'La voiture de James Bond',
     favorite: 1,
-    category: 'Coupé'
+    category: 'Coupé',
+    image_url: "https://upload.wikimedia.org/wikipedia/commons/3/3d/Aston_Martin_DB5_%28Skyfall%29.jpg"
+
   }
 ];
 
