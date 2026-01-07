@@ -6,7 +6,7 @@ const checkApiKey = (req, res, next) => {
     const apiKey = req.headers['x-api-key'];
     
     // Clé API attendue (en production, stockez-la dans des variables d'environnement)
-    const validApiKey = process.env.API_KEY;
+    const validApiKey = process.env.API_KEY ||"farfelu-zgoulav";
     
     // Vérification
     if (!apiKey) {

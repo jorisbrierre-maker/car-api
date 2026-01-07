@@ -11,7 +11,9 @@ const sampleCars = [
     price: 45000000,
     mileage: 12000,
     description: 'Voiture de collection exceptionnelle',
-    category: 'Sportive'
+    category: 'Sportive',
+    image_url: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/1962_Ferrari_250_GTO_34_2.jpg/1200px-1962_Ferrari_250_GTO_34_2.jpg"
+    
   },
   {
     brand: 'Porsche',
