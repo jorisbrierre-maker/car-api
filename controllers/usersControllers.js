@@ -12,7 +12,9 @@ exports.carValidationRules = [
   body('color').optional().isString().withMessage('La couleur (color) doit être une chaîne de caractères.'),
   body('description').optional().isString().withMessage('La description (description) doit être une chaîne de caractères.'),
   body('favorite').optional().isBoolean().withMessage('Le champ "favorite" doit être un booléen (0 ou 1).'),
-  body('category').optional().isString().withMessage('La catégorie doit être une chaîne de caractères.')
+  body('category').optional().isString().withMessage('La catégorie doit être une chaîne de caractères.'),
+  body('image_url').optional().isURL().withMessage("L'URL de l'image n'est pas valide.")
+  
 ];
 
 // --- Middleware qui vérifie les résultats de la validation ---
@@ -174,56 +176,58 @@ exports.getCarById = (req, res) => {
 
 // --- POST - Créer une nouvelle voiture ---
 exports.createCar = (req, res) => {
-    const { brand, model, year, color, price, mileage, description, favorite, category } = req.body; // Ajout 'category'
+  // 1. On ajoute 'image_url' dans l'extraction des données
+  const { brand, model, year, color, price, mileage, description, favorite, category, image_url } = req.body; 
+
+  // 2. On ajoute la colonne et le point d'interrogation dans la requête
+  const query = `
+    INSERT INTO cars (brand, model, year, color, price, mileage, description, favorite, category, image_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `; 
   
-    const query = `
-      INSERT INTO cars (brand, model, year, color, price, mileage, description, favorite, category)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `; // Ajout 'category'
-    const params = [brand, model, year, color, price, mileage, description, favorite || 0, category]; // Ajout 'category'
-  
-    db.run(query, params, function (err) { 
-      if (err) { /* ... */ }
-      res.status(201).json({
-        success: true,
-        message: 'Voiture créée avec succès',
-        data: {
-          id: this.lastID,
-          brand, model, year, color, price, mileage, description, 
-          favorite: favorite || 0,
-          category // Ajout 'category'
-        }
-      });
+  // 3. On ajoute la valeur dans le tableau des paramètres
+  const params = [brand, model, year, color, price, mileage, description, favorite || 0, category, image_url]; 
+
+  db.run(query, params, function (err) { 
+    if (err) {
+      return res.status(500).json({ error: 'Erreur insertion', details: err.message });
+    }
+    res.status(201).json({
+      success: true,
+      message: 'Voiture créée avec succès',
+      data: {
+        id: this.lastID,
+        brand, model, year, color, price, mileage, description, 
+        favorite: favorite || 0,
+        category,
+        image_url // On renvoie maintenant l'image_url pour le Frontend
+      }
     });
-  };
+  });
+};
 
 // --- PUT - Modifier une voiture existante ---
+
 exports.updateCar = (req, res) => {
-    const id = req.params.id;
-    const { brand, model, year, color, price, mileage, description, favorite, category } = req.body; // Ajout 'category'
-  
-    const query = `
-      UPDATE cars
-      SET brand = ?, model = ?, year = ?, color = ?, price = ?, mileage = ?, description = ?, favorite = ?, category = ?
-      WHERE id = ?
-    `; // Ajout 'category = ?'
-    const params = [brand, model, year, color, price, mileage, description, favorite, category, id]; // Ajout 'category'
-  
-    db.run(query, params, function (err) {
-      if (err) { /* ... */ }
-      if (this.changes === 0) { /* ... */ }
-      res.json({
-        success: true,
-        message: 'Voiture mise à jour avec succès',
-        data: {
-          id: Number(id),
-          brand, model, year, color, price, mileage, description,
-          favorite,
-          category // Ajout 'category'
-        }
-      });
+  const id = req.params.id;
+  const { brand, model, year, color, price, mileage, description, favorite, category, image_url } = req.body; 
+
+  const query = `
+    UPDATE cars
+    SET brand = ?, model = ?, year = ?, color = ?, price = ?, mileage = ?, description = ?, favorite = ?, category = ?, image_url = ?
+    WHERE id = ?
+  `; 
+  const params = [brand, model, year, color, price, mileage, description, favorite, category, image_url, id]; 
+
+  db.run(query, params, function (err) {
+    if (err) { /* ... */ }
+    res.json({
+      success: true,
+      message: 'Voiture mise à jour avec succès',
+      data: { id: Number(id), brand, model, year, color, price, mileage, description, favorite, category, image_url }
     });
-  };;
+  });
+};
 
 // --- DELETE - Supprimer une voiture ---
 exports.deleteCar = (req, res) => {
